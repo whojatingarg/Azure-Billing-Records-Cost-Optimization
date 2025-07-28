@@ -1,0 +1,33 @@
+tiers:
+  hot:
+    threshold_months: 3
+    storage_type: "cosmos_db"
+    throughput_ru: 400
+    
+  warm:
+    threshold_months: 12
+    storage_type: "blob_storage"
+    access_tier: "hot"
+    
+  cold:
+    storage_type: "blob_storage"
+    access_tier: "archive"
+
+migration:
+  batch_size: 1000
+  parallelism_degree: 10
+  retry_max_attempts: 5
+  verification_period_days: 7
+
+monitoring:
+  metrics_interval_seconds: 30
+  alert_thresholds:
+    migration_failure_rate: 0.05
+    tier_response_time_ms: 5000
+    cost_variance_percent: 0.10
+
+security:
+  encryption_enabled: true
+  key_rotation_days: 90
+  audit_enabled: true
+  api_rate_limit_per_minute: 1000

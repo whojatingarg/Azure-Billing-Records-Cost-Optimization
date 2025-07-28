@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Billing Records Cost Optimization Architecture</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0078d4 0%, #106ebe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 300;
+        }
+        
+        .architecture-diagram {
+            padding: 40px;
+            background: #f8f9ff;
+        }
+        
+        .diagram-container {
+            position: relative;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .layer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 25px 0;
+            padding: 20px;
+            border-radius: 8px;
+            position: relative;
+        }
+        
+        .client-layer {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+        }
+        
+        .api-layer {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+        
+        .processing-layer {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .storage-layer {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+        }
+        
+        .component {
+            flex: 1;
+            text-align: center;
+            margin: 0 10px;
+            padding: 15px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .component h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .component p {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .arrow {
+            position: absolute;
+            right: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid rgba(255,255,255,0.8);
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+        }
+        
+        .data-flow {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .tier-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-left: 5px solid;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .tier-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+        
+        .hot-tier {
+            border-left-color: #ff4757;
+        }
+        
+        .warm-tier {
+            border-left-color: #ffa502;
+        }
+        
+        .cold-tier {
+            border-left-color: #3742fa;
+        }
+        
+        .tier-card h3 {
+            margin: 0 0 15px 0;
+            color: #2f3542;
+            font-size: 1.3rem;
+        }
+        
+        .tier-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 10px;
+            background: #f1f2f6;
+            border-radius: 6px;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2f3542;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: #57606f;
+            margin-top: 5px;
+        }
+        
+        .cost-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .cost-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .current-cost {
+            border-top: 5px solid #ff4757;
+        }
+        
+        .optimized-cost {
+            border-top: 5px solid #2ed573;
+        }
+        
+        .cost-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .current-cost .cost-value {
+            color: #ff4757;
+        }
+        
+        .optimized-cost .cost-value {
+            color: #2ed573;
+        }
+        
+        .savings-badge {
+            background: linear-gradient(135deg, #2ed573, #17a2b8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        
+        .implementation-timeline {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #667eea, #764ba2);
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            margin-left: 20px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -35px;
+            top: 25px;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px #667eea;
+        }
+        
+        .week-label {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Azure Billing Records Cost Optimization Architecture</h1>
+            <p>Hot-Warm-Cold Data Tiering Strategy with Zero Downtime Migration</p>
+        </div>
+        
+        <div class="architecture-diagram">
+            <div class="diagram-container">
+                <h2 style="text-align: center; color: #2f3542; margin-bottom: 30px;">System Architecture Overview</h2>
+                
+                <div class="layer client-layer">
+                    <div class="component">
+                        <h3>📱 Client Applications</h3>
+                        <p>Web, Mobile, Desktop Apps</p>
+                    </div>
+                    <div class="component">
+                        <h3>🔌 Existing APIs</h3>
+                        <p>No Changes Required</p>
+                    </div>
+                    <div class="arrow"></div>
+                </div>
+                
+                <div class="layer api-layer">
+                    <div class="component">
+                        <h3>⚡ Azure Functions</h3>
+                        <p>API Gateway & Router</p>
+                    </div>
+                    <div class="component">
+                        <h3>🧠 Smart Data Router</h3>
+                        <p>Intelligent Tier Selection</p>
+                    </div>
+                    <div class="component">
+                        <h3>📊 Application Insights</h3>
+                        <p>Monitoring & Analytics</p>
+                    </div>
+                    <div class="arrow"></div>
+                </div>
+                
+                <div class="layer processing-layer">
+                    <div class="component">
+                        <h3>🔄 Lifecycle Manager</h3>
+                        <p>Automated Data Migration</p>
+                    </div>
+                    <div class="component">
+                        <h3>📮 Service Bus</h3>
+                        <p>Async Processing Queue</p>
+                    </div>
+                    <div class="component">
+                        <h3>⚙️ Migration Processor</h3>
+                        <p>Zero-Downtime Migration</p>
+                    </div>
+                    <div class="arrow"></div>
+                </div>
+                
+                <div class="layer storage-layer">
+                    <div class="component">
+                        <h3>🔥 Hot Tier</h3>
+                        <p>Cosmos DB (0-3 months)</p>
+                    </div>
+                    <div class="component">
+                        <h3>🌡️ Warm Tier</h3>
+                        <p>Blob Storage (3-12 months)</p>
+                    </div>
+                    <div class="component">
+                        <h3>🧊 Cold Tier</h3>
+                        <p>Archive Storage (12+ months)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="data-flow">
+                <div class="tier-card hot-tier">
+                    <h3>🔥 Hot Tier - Cosmos DB</h3>
+                    <p><strong>Data Age:</strong> 0-3 months (Recent records)</p>
+                    <p><strong>Access Pattern:</strong> High frequency, low latency</p>
+                    <p><strong>Response Time:</strong> < 100ms</p>
+                    <div class="tier-stats">
+                        <div class="stat">
+                            <div class="stat-value">25%</div>
+                            <div class="stat-label">Data Volume</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">$600</div>
+                            <div class="stat-label">Monthly Cost</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tier-card warm-tier">
+                    <h3>🌡️ Warm Tier - Blob Storage</h3>
+                    <p><strong>Data Age:</strong> 3-12 months (Moderate access)</p>
+                    <p><strong>Access Pattern:</strong> Medium frequency, acceptable latency</p>
+                    <p><strong>Response Time:</strong> 1-3 seconds</p>
+                    <div class="tier-stats">
+                        <div class="stat">
+                            <div class="stat-value">50%</div>
+                            <div class="stat-label">Data Volume</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">$120</div>
+                            <div class="stat-label">Monthly Cost</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tier-card cold-tier">
+                    <h3>🧊 Cold Tier - Archive Storage</h3>
+                    <p><strong>Data Age:</strong> 12+ months (Rare access)</p>
+                    <p><strong>Access Pattern:</strong> Low frequency, async retrieval</p>
+                    <p><strong>Response Time:</strong> 5-15 seconds</p>
+                    <div class="tier-stats">
+                        <div class="stat">
+                            <div class="stat-value">25%</div>
+                            <div class="stat-label">Data Volume</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">$12</div>
+                            <div class="stat-label">Monthly Cost</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cost-comparison">
+                <div class="cost-card current-cost">
+                    <h3>Current Monthly Cost</h3>
+                    <div class="cost-value">$2,400</div>
+                    <p>Single Cosmos DB tier storing all 2M+ records with 400 RU/s provisioned throughput</p>
+                </div>
+                
+                <div class="cost-card optimized-cost">
+                    <h3>Optimized Monthly Cost</h3>
+                    <div class="cost-value">$802</div>
+                    <p>Multi-tier storage with intelligent data placement and lifecycle management</p>
+                    <div class="savings-badge">
+                        💰 67% Cost Reduction = $1,598/month savings
+                    </div>
+                </div>
+            </div>
+            
+            <div class="implementation-timeline">
+                <h2 style="text-align: center; color: #2f3542; margin-bottom: 30px;">Implementation Timeline</h2>
+                
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="week-label">Week 1-2: Infrastructure Setup</div>
+                        <p>✅ Create storage accounts and containers<br>
+                        ✅ Configure blob lifecycle policies<br>
+                        ✅ Set up monitoring and alerting</p>
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <div class="week-label">Week 3-4: Function Development</div>
+                        <p>✅ Implement smart data router function<br>
+                        ✅ Create lifecycle management functions<br>
+                        ✅ Build migration processor with zero-downtime capability</p>
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <div class="week-label">Week 4-5: Migration Execution</div>
+                        <p>✅ Start with 1% of data for testing<br>
+                        ✅ Gradually increase to 100% migration<br>
+                        ✅ Monitor performance and cost metrics</p>
+                    </div>
+                    
+                    <div class="timeline-item">
+                        <div class="week-label">Week 6: Optimization & Cleanup</div>
+                        <p>✅ Fine-tune performance based on metrics<br>
+                        ✅ Clean up migrated data from hot tier<br>
+                        ✅ Document processes and train operations team</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

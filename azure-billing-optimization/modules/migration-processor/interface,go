@@ -1,0 +1,169 @@
+INTERFACE MigrationProcessor {
+    METHODS:
+        ProcessMigrationQueue(ctx Context) -> ProcessingResult
+        HandleMigrationFailure(ctx Context, task MigrationTask, error Error) -> RetryDecision
+        ValidateDataIntegrity(sourceData Data, targetData Data) -> ValidationResult
+        ExecuteRollback(ctx Context, migrationID String) -> RollbackResult
+}
+
+MODULE MigrationProcessorModule IMPLEMENTS MigrationProcessor {
+    DEPENDENCIES:
+        - ServiceBusService
+        - TierStorageService
+        - MetricsCollector
+        - DeadLetterHandler
+        - DataValidator
+        
+    CONFIGURATION:
+        - MaxRetryAttempts: Integer
+        - RetryBackoffStrategy: BackoffStrategy
+        - DeadLetterThreshold: Integer
+        - ValidationRules: ValidationConfig
+        
+    METHOD ProcessMigrationQueue(ctx) {
+        WHILE ctx.IsActive() {
+            TRY {
+                // Step 1: Receive messages from queue
+                messages = ServiceBusService.ReceiveMessages(
+                    queueName = "data-migration",
+                    maxMessages = 10,
+                    timeout = 30_SECONDS
+                )
+                
+                // Step 2: Process messages concurrently
+                FOR EACH message IN messages PARALLEL {
+                    TRY {
+                        migrationTask = DeserializeMigrationTask(message.Body)
+                        result = ProcessSingleMigration(ctx, migrationTask)
+                        
+                        IF result.Success {
+                            ServiceBusService.CompleteMessage(message)
+                            RECORD_METRIC("migration_success", migrationTask.RecordID)
+                        } ELSE {
+                            retryDecision = HandleMigrationFailure(ctx, migrationTask, result.Error)
+                            
+                            SWITCH retryDecision.Action {
+                                CASE RETRY:
+                                    ServiceBusService.RetryMessage(message, retryDecision.DelaySeconds)
+                                    
+                                CASE DEAD_LETTER:
+                                    ServiceBusService.DeadLetterMessage(message, retryDecision.Reason)
+                                    RECORD_METRIC("migration_dead_letter", migrationTask.RecordID)
+                                    
+                                CASE ABANDON:
+                                    ServiceBusService.AbandonMessage(message)
+                            }
+                        }
+                        
+                    } CATCH Exception e {
+                        ServiceBusService.AbandonMessage(message)
+                        RECORD_METRIC("migration_processing_error", 1)
+                        LOG_ERROR("Migration processing failed", e)
+                    }
+                }
+                
+            } CATCH Exception e {
+                LOG_ERROR("Queue processing error", e)
+                SLEEP(5_SECONDS) // Backoff on queue errors
+            }
+        }
+    }
+    
+    METHOD ProcessSingleMigration(ctx, migrationTask) {
+        START_TIMER(migrationTimer)
+        
+        TRY {
+            // Step 1: Validate migration prerequisites
+            prerequisiteCheck = ValidateMigrationPrerequisites(migrationTask)
+            IF NOT prerequisiteCheck.IsValid {
+                RETURN MigrationResult{
+                    Success: FALSE,
+                    Error: prerequisiteCheck.Error
+                }
+            }
+            
+            // Step 2: Execute atomic migration
+            SWITCH migrationTask.Action {
+                CASE "MigrateToWarm":
+                    result = ExecuteHotToWarmMigration(ctx, migrationTask)
+                    
+                CASE "MigrateToCold":
+                    result = ExecuteWarmToColdMigration(ctx, migrationTask)
+                    
+                CASE "Rehydrate":
+                    result = ExecuteColdRehydration(ctx, migrationTask)
+                    
+                DEFAULT:
+                    THROW UnsupportedMigrationException(migrationTask.Action)
+            }
+            
+            // Step 3: Validate migration integrity
+            validationResult = ValidateDataIntegrity(
+                migrationTask.SourceData,
+                result.MigratedData
+            )
+            
+            IF NOT validationResult.IsValid {
+                // Rollback on integrity failure
+                ExecuteRollback(ctx, migrationTask.MigrationID)
+                RETURN MigrationResult{
+                    Success: FALSE,
+                    Error: validationResult.Error
+                }
+            }
+            
+            RECORD_METRIC("migration_latency", STOP_TIMER(migrationTimer))
+            RETURN result
+            
+        } CATCH Exception e {
+            RECORD_METRIC("migration_exception", migrationTask.Action)
+            RETURN MigrationResult{
+                Success: FALSE,
+                Error: e
+            }
+        }
+    }
+    
+    METHOD HandleMigrationFailure(ctx, task, error) {
+        // Increment retry count
+        task.RetryCount++
+        
+        // Determine retry strategy based on error type
+        SWITCH error.Type {
+            CASE TRANSIENT_ERROR:
+                IF task.RetryCount <= MAX_RETRY_ATTEMPTS {
+                    delaySeconds = CalculateExponentialBackoff(task.RetryCount)
+                    RETURN RetryDecision{
+                        Action: RETRY,
+                        DelaySeconds: delaySeconds
+                    }
+                }
+                
+            CASE RATE_LIMIT_ERROR:
+                RETURN RetryDecision{
+                    Action: RETRY,
+                    DelaySeconds: RATE_LIMIT_BACKOFF
+                }
+                
+            CASE DATA_CORRUPTION_ERROR:
+                // Log critical error and dead letter immediately
+                LOG_CRITICAL("Data corruption detected", task.RecordID, error)
+                RETURN RetryDecision{
+                    Action: DEAD_LETTER,
+                    Reason: "Data corruption detected"
+                }
+                
+            CASE PERMANENT_ERROR:
+                RETURN RetryDecision{
+                    Action: DEAD_LETTER,
+                    Reason: error.Message
+                }
+        }
+        
+        // Default: Dead letter after max retries
+        RETURN RetryDecision{
+            Action: DEAD_LETTER,
+            Reason: "Max retry attempts exceeded"
+        }
+    }
+}
