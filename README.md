@@ -17,7 +17,7 @@ Azure Functions - Data lifecycle management and retrieval orchestration
 Azure Service Bus - Asynchronous processing queue
 Application Insights - Monitoring and analytics
 
-Data Flow Architecture
+<pre> ```Data Flow Architecture
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Client API    │───▶│  Azure Function  │───▶│   Cosmos DB     │
 │   Requests      │    │   (API Gateway)  │    │   (Hot Tier)    │
@@ -42,6 +42,7 @@ Data Flow Architecture
             │ Lifecycle Mgmt │     │ Archive Mgmt   │
             │   Function     │     │   Function     │
             └────────────────┘     └────────────────┘
+``` </pre>
 
 
 Cost Optimization Breakdown
