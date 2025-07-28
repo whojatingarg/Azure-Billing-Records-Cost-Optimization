@@ -1,5 +1,5 @@
 # Azure-Billing-Records-Cost-Optimization
-
+<pre>
 Azure Billing Records Cost Optimization Solution
 
 Summary
@@ -152,3 +152,5 @@ System Availability: Maintain 99.9% uptime during migration
 Developer Experience: No changes required to existing applications
 
 This solution provides a robust, cost-effective approach to managing the billing records while maintaining all existing functionality and ensuring zero data loss or downtime.
+
+</pre>
